@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#eceae1">
+<title>Babar's Dispensary</title>
+<style>
+  :root{ --paper:#eceae1; --paper2:#f6f4ee; --navy:#16204c; --navy2:#26305e; --red:#d22b1b; --dim:#717693; --line:#c9c6ba;
+    --face:'Helvetica Neue',Helvetica,Arial,sans-serif; --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace; }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--paper); color:var(--navy); font-family:var(--face); min-height:100dvh; -webkit-font-smoothing:antialiased;
+    padding:24px 18px calc(34px + env(safe-area-inset-bottom))}
+  .wrap{max-width:560px; margin:0 auto}
+
+  .masthead{border-top:2px solid var(--navy); border-bottom:1px solid var(--navy); padding:10px 0 12px; margin-bottom:6px; position:relative}
+  .masthead h1{margin:0; font-size:clamp(24px,7vw,38px); font-weight:700; letter-spacing:-.015em; max-width:72%}
+  .masthead h1 sup{font-size:.36em; vertical-align:super; font-weight:600}
+  .masthead .tag{font-size:12.5px; color:var(--navy); margin-top:4px}
+  .sticker{position:absolute; top:10px; right:0; background:var(--red); color:#fff; font-size:9px; line-height:1.3; padding:7px 9px; max-width:150px; transform:rotate(.5deg)}
+  .sticker b{font-weight:700}
+
+  .rxrule{font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); margin:18px 2px 10px; display:flex; justify-content:space-between}
+  .rxrule .n{color:var(--navy2)}
+
+  a.item{display:flex; gap:14px; align-items:center; text-decoration:none; color:inherit; background:var(--paper2);
+    border:1px solid var(--line); border-radius:2px; padding:13px 14px; margin-bottom:9px; transition:border-color .18s ease, transform .18s ease}
+  a.item:hover,a.item:focus-visible{border-color:var(--navy); outline:none}
+  a.item:active{transform:translateY(1px)}
+  .code{flex:0 0 auto; width:54px; height:54px; border:1px solid var(--navy); display:flex; align-items:center; justify-content:center;
+    font-family:var(--mono); font-size:13px; letter-spacing:.06em; color:var(--navy)}
+  .ct{flex:1; min-width:0}
+  .ct .nm{font-size:18px; font-weight:700; line-height:1.15}
+  .ct .bl{font-size:12.5px; color:var(--dim); margin-top:3px; line-height:1.42}
+  .ct .dose{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--navy2); margin-top:6px}
+  .arrow{flex:0 0 auto; font-family:var(--mono); font-size:18px; color:var(--navy2)}
+
+  .note{font-family:var(--mono); font-size:9px; letter-spacing:.06em; color:var(--dim); line-height:1.6; border:1px dashed var(--line); border-radius:2px; padding:11px 12px; margin-top:14px}
+  .foot{text-align:center; font-family:var(--mono); font-size:8.5px; letter-spacing:.1em; color:var(--dim); margin-top:22px; line-height:1.7}
+
+  @media (prefers-reduced-motion: no-preference){
+    a.item{opacity:0; transform:translateY(6px); animation:rise .5s ease forwards}
+    @keyframes rise{to{opacity:1; transform:none}}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="masthead">
+    <h1>Babar's Dispensary<sup>®</sup></h1>
+    <div class="tag">homemade audio preparations · for the Emon community</div>
+    <div class="sticker">Experimental instruments &amp; toys. <b>All run in your browser. Nothing uploaded.</b></div>
+  </div>
+
+  <div class="rxrule"><span>Preparations — take as needed</span><span class="n" id="count"></span></div>
+  <div id="shelf"></div>
+
+  <div class="note">
+    ADDING ANOTHER APP? Upload its <b>.html</b> file to this repo, then add one line to the list inside this page's code
+    (look for "EDIT HERE"). Keep filenames lowercase with no spaces.
+  </div>
+
+  <p class="foot">RENDERED ON YOUR DEVICE · NOTHING UPLOADED<br>made by Babar · hosted on GitHub Pages</p>
+</div>
+
+<script>
+"use strict";
+/* ────────────────────────────────────────────────────────────────────────
+   EDIT HERE — one entry per app.
+   file   : the .html filename you uploaded to this repo (relative path)
+   code   : 3 letters shown in the square
+   name   : title
+   blurb  : one line
+   dose   : the small category label (pharmacy-style, your call)
+   ──────────────────────────────────────────────────────────────────────── */
+const APPS = [
+  { file:"ambient-radio.html",    code:"RAD", name:"Babar's Ambient Radio", blurb:"self-composing generative ambient, tuned for hearing aids · saves & shares patches",            dose:"∞ · generative ambient" },
+  { file:"ambient-oracle.html",   code:"ORC", name:"Ambient Oracle",        blurb:"load your own tracks and find out which ambient world you're living in",                       dose:"diagnostic" },
+  { file:"microtonal-drone.html", code:"DRN", name:"Microtonal Drone",      blurb:"tunable drones in just intonation — beating, shifting, slow",                                  dose:"microtonal" },
+  { file:"invaders-granular.html",code:"INV", name:"Invaders",              blurb:"a granular synth grown from the sound of Space Invaders",                                      dose:"granular toy" },
+  { file:"ambient-music-generator.html", code:"AMG", name:"Babar's Ambient Music Generator", blurb:"generative euclidean grooves & in-key chords · audition here, export MIDI to your DAW", dose:"songwriting · MIDI out" },
+  { file:"utility-ledger.html",   code:"LED", name:"Utility Ledger",        blurb:"track gas, electricity & water bills · month-by-month + year-to-date · calendar reminders",     dose:"household admin" },
+  { file:"daybook.html",          code:"DAY", name:"Daybook",               blurb:"to-do list, appointments with calendar export, and a notes scratchpad",                        dose:"tasks · diary · notes" },
+  { file:"work-planner.html",     code:"WRK", name:"Work Planner",          blurb:"objectives with weighted progress · actions through backlog→doing→done · today & week views",   dose:"objectives · delivery" },
+];
+
+const shelf = document.getElementById('shelf');
+APPS.forEach((a,i)=>{
+  const el = document.createElement('a');
+  el.className = 'item';
+  el.href = a.file;
+  el.style.animationDelay = (i*60)+'ms';
+  el.setAttribute('aria-label', a.name);
+  const code = document.createElement('div'); code.className='code'; code.textContent=a.code;
+  const ct = document.createElement('div'); ct.className='ct';
+  const nm = document.createElement('div'); nm.className='nm'; nm.textContent=a.name;
+  const bl = document.createElement('div'); bl.className='bl'; bl.textContent=a.blurb;
+  const ds = document.createElement('div'); ds.className='dose'; ds.textContent=a.dose;
+  ct.appendChild(nm); ct.appendChild(bl); ct.appendChild(ds);
+  const ar = document.createElement('div'); ar.className='arrow'; ar.textContent='›';
+  el.appendChild(code); el.appendChild(ct); el.appendChild(ar);
+  shelf.appendChild(el);
+});
+document.getElementById('count').textContent = APPS.length + (APPS.length===1?' item':' items');
+</script>
+</body>
+</html>
