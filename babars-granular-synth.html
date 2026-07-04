@@ -198,7 +198,7 @@ function crushCurve(amt){ const n=1024, c=new Float32Array(n); const steps=Math.
   for(let i=0;i<n;i++){ const x=i/(n-1)*2-1; let y=Math.tanh(x*drive); y=Math.round(y*steps)/steps; c[i]=y; } return c; }
 function ensureCtx(){ if(ctx)return;
   const AC=window.AudioContext||window.webkitAudioContext; ctx=new AC(); G={};
-  G.master=ctx.createGain(); G.master.gain.value=P.level/100*0.9;
+  G.master=ctx.createGain(); G.master.gain.value=P.level/100*0.9*ZMIX;
   G.limit=ctx.createDynamicsCompressor(); G.limit.threshold.value=-9; G.limit.ratio.value=12; G.limit.knee.value=8; G.limit.attack.value=0.003; G.limit.release.value=0.2;
   G.shape=ctx.createWaveShaper(); G.shape.curve=crushCurve(P.crush); G.shape.oversample='2x';
   G.lp=ctx.createBiquadFilter(); G.lp.type='lowpass'; G.lp.frequency.value=toneHz(); G.lp.Q.value=0.5;
@@ -341,6 +341,10 @@ function toggleRecord(){ const b=$('recBtn');
     dl('granular-'+srcName+'-'+NOTE[rootPc].replace('#','s')+'.wav', encodeWav16(L,R,ctx.sampleRate),'audio/wav');
     b.textContent='saved ✓'; setTimeout(()=>b.textContent='● rec',1500); } }
 
+let ZMIX=1;
+window.addEventListener('message',ev=>{ const d=ev&&ev.data; if(!d||typeof d!=='object')return;
+  if(d.type==='zone-mix'){ ZMIX=Math.min(1,Math.max(0,+d.gain||0)); push(); }
+  else if(d.type==='zone-rec'){ if(!!d.on!==recOn) toggleRecord(); } });
 // ── ui wiring ─────────────────────────────────────────────────────────
 BUILTINS.forEach(([v,l])=>{ const o=document.createElement('option'); o.value=v; o.textContent=l; $('srcSel').appendChild(o); });
 NOTE.forEach((n,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent='root '+n; if(i===2)o.selected=true; $('rootSel').appendChild(o); });
@@ -351,7 +355,7 @@ function labels(){ $('vSize').textContent=Math.round(30+Math.pow(P.size/100,1.6)
   $('vCrush').textContent=P.crush?P.crush:'off'; $('vEcho').textContent=P.echo; $('vSpace').textContent=P.space; $('vLevel').textContent=P.level; }
 function push(){ if(!ctx)return; G.lp.frequency.setTargetAtTime(toneHz(),ctx.currentTime,0.06);
   G.shape.curve=crushCurve(P.crush); G.delLvl.gain.setTargetAtTime(P.echo/100*0.8,ctx.currentTime,0.15);
-  G.verbLvl.gain.setTargetAtTime(P.space/100*0.9,ctx.currentTime,0.2); G.master.gain.setTargetAtTime(P.level/100*0.9,ctx.currentTime,0.08); }
+  G.verbLvl.gain.setTargetAtTime(P.space/100*0.9,ctx.currentTime,0.2); G.master.gain.setTargetAtTime(P.level/100*0.9*ZMIX,ctx.currentTime,0.08); }
 IDS.forEach(id=>$(id).addEventListener('input',e=>{ P[id]=+e.target.value; labels(); push(); }));
 function updNp(){ const l=voices.filter(v=>v.latched).length;
   $('np').textContent=srcName+' · root '+NOTE[rootPc]+' · '+ (scaleName==='free'?'free pitch':scaleName) + (l?(' · '+l+' latched'):''); }

@@ -34,6 +34,23 @@
   .welcome h1{margin:0; font-weight:300; font-size:clamp(22px,5.5vw,34px); letter-spacing:.28em; text-indent:.28em}
   .welcome p{max-width:440px; color:var(--dim); line-height:1.9; font-size:14px; margin:0}
   .welcome p b{color:var(--ink)}
+  .strip{display:flex; gap:6px; align-items:center; padding:7px 10px; border-top:1px solid var(--line); overflow-x:auto}
+  .sb{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim);
+    background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:9px 13px; cursor:pointer; flex:0 0 auto}
+  .sb.on{color:#07080f; background:#7fd4ff; border-color:#7fd4ff}
+  .sb.rec{color:#ff9d5c; border-color:#ff9d5c}
+  .sb.rec.on{color:#07080f; background:#ff9d5c}
+  .drawer{display:none; border-top:1px solid var(--line); background:rgba(10,12,22,.97); padding:10px 14px 6px; max-height:44vh; overflow-y:auto}
+  .drawer.open{display:block}
+  .mrow{display:grid; grid-template-columns:86px 1fr 38px; gap:10px; align-items:center; padding:6px 0}
+  .mrow .mn{font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); display:flex; align-items:center; gap:6px}
+  .mrow .mn i{width:8px; height:8px; border-radius:99px; background:var(--c,#555); font-style:normal}
+  .mrow.live .mn{color:var(--ink)}
+  .mrow .mv{font-family:var(--mono); font-size:10px; color:var(--dim); text-align:right}
+  .mrow input[type=range]{-webkit-appearance:none; appearance:none; width:100%; height:5px; background:var(--line); border-radius:3px}
+  .mrow input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:26px; height:26px; border-radius:50%; background:#7fd4ff; cursor:pointer}
+  .mrow input[type=range]::-moz-range-thumb{width:26px; height:26px; border:0; border-radius:50%; background:#7fd4ff}
+  .mrow.mstr .mn{color:#ff9d5c} .mrow.mstr input[type=range]::-webkit-slider-thumb{background:#ff9d5c}
   .foot{font-family:var(--mono); font-size:8.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim);
     text-align:center; padding:7px 10px calc(7px + env(safe-area-inset-bottom)); border-top:1px solid var(--line)}
   :focus-visible{outline:2px solid #7fd4ff; outline-offset:2px}
@@ -48,7 +65,16 @@
       <p>layering tip: match keys — HAL root 65 Hz ≈ C, then SWELL and the generator in C, and everything agrees.</p>
     </div>
   </div>
-  <div class="foot">the zone rack · instruments run side by side · nothing uploaded</div>
+  <div class="drawer" id="drawer"></div>
+  <div class="strip">
+    <button class="sb" id="mixBtn" type="button">mixer</button>
+    <button class="sb rec" id="recAllBtn" type="button">⏺ rec all</button>
+    <button class="sb" id="sceneSave" type="button">▤ save scene</button>
+    <button class="sb" id="sceneOpen" type="button">▤ open scene</button>
+    <button class="sb" id="midiBtn" type="button">midi: off</button>
+    <input type="file" id="sceneFile" accept="application/json,.json" hidden>
+  </div>
+  <div class="foot">the zone rack · instruments run side by side · faders balance the layers · nothing uploaded</div>
 
 <script>
 "use strict";
@@ -88,11 +114,12 @@ function show(id){
     const f=document.createElement('iframe');
     f.src=ins.file; f.title=ins.label;
     f.setAttribute('allow','autoplay');
+    f.addEventListener('load',()=>sendMix(id));
     stage.appendChild(f); frames[id]=f;
   }
   cur=id;
   for(const k in frames) frames[k].classList.toggle('hid',k!==id);
-  renderTabs();
+  renderTabs(); renderMixer();
 }
 function powerOff(id){
   const f=frames[id]; if(!f)return;
@@ -100,13 +127,81 @@ function powerOff(id){
   if(cur===id){ cur=null; const liveIds=Object.keys(frames);
     if(liveIds.length) show(liveIds[0]); else { welcome.style.display='flex'; renderTabs(); } }
   else renderTabs();
+  renderMixer();
 }
+// ── mixer ─────────────────────────────────────────────────────────────
+const MIX={master:100}; INSTRUMENTS.forEach(i=>MIX[i.id]=100);
+function gainFor(id){ return Math.min(1,Math.max(0,(MIX[id]||0)/100))*Math.min(1,Math.max(0,MIX.master/100)); }
+function sendMix(id){ const f=frames[id]; if(!f||!f.contentWindow)return;
+  try{ f.contentWindow.postMessage({type:'zone-mix', gain:gainFor(id)}, '*'); }catch(e){} }
+function sendAllMix(){ for(const k in frames) sendMix(k); }
+const drawer=document.getElementById('drawer');
+function renderMixer(){ if(!drawer.classList.contains('open')){ drawer.innerHTML=''; return; }
+  let html='<div class="mrow mstr"><div class="mn">master</div>'+
+    '<input type="range" min="0" max="100" value="'+MIX.master+'" data-mx="master" aria-label="master volume">'+
+    '<div class="mv">'+MIX.master+'</div></div>';
+  for(const ins of INSTRUMENTS){ const live=!!frames[ins.id];
+    html+='<div class="mrow'+(live?' live':'')+'"><div class="mn"><i style="--c:'+ins.c+'"></i>'+ins.label+(live?'':' ·off')+'</div>'+
+      '<input type="range" min="0" max="100" value="'+MIX[ins.id]+'" data-mx="'+ins.id+'" aria-label="'+ins.label+' volume">'+
+      '<div class="mv">'+MIX[ins.id]+'</div></div>'; }
+  drawer.innerHTML=html; }
+drawer.addEventListener('input',e=>{ const t=e.target; const id=t.dataset&&t.dataset.mx; if(!id)return;
+  MIX[id]=+t.value; const mv=t.parentElement.querySelector('.mv'); if(mv)mv.textContent=t.value;
+  if(id==='master') sendAllMix(); else sendMix(id); });
+document.getElementById('mixBtn').addEventListener('click',()=>{ drawer.classList.toggle('open');
+  document.getElementById('mixBtn').classList.toggle('on',drawer.classList.contains('open')); renderMixer(); });
+
+// ── rec all (stems from every live instrument that can record) ────────
+let recAll=false;
+document.getElementById('recAllBtn').addEventListener('click',()=>{ recAll=!recAll;
+  const b=document.getElementById('recAllBtn'); b.classList.toggle('on',recAll); b.textContent=recAll?'⏹ stop all':'⏺ rec all';
+  for(const k in frames){ try{ frames[k].contentWindow.postMessage({type:'zone-rec', on:recAll}, '*'); }catch(e){} } });
+
+// ── scenes ────────────────────────────────────────────────────────────
+function sceneObj(){ return {v:1, zone:'rack', live:Object.keys(frames), cur, mix:Object.assign({},MIX)}; }
+function parseScene(text){ let j; try{ j=JSON.parse(text); }catch(e){ return null; }
+  if(!j||j.zone!=='rack'||!Array.isArray(j.live)||!j.mix) return null;
+  const ids=INSTRUMENTS.map(i=>i.id);
+  return { live:j.live.filter(x=>ids.includes(x)),
+    cur:ids.includes(j.cur)?j.cur:null,
+    mix:Object.fromEntries(Object.entries(j.mix).filter(([k])=>k==='master'||ids.includes(k)).map(([k,v])=>[k,Math.min(100,Math.max(0,+v||0))])) }; }
+function applyScene(sc){ if(!sc)return;
+  Object.assign(MIX,sc.mix);
+  for(const id of sc.live) show(id);
+  if(sc.cur) show(sc.cur);
+  sendAllMix(); renderMixer(); }
+document.getElementById('sceneSave').addEventListener('click',()=>{
+  const data=JSON.stringify(sceneObj());
+  const u=URL.createObjectURL(new Blob([data],{type:'application/json'}));
+  const a=document.createElement('a'); a.href=u; a.download='zone-scene.json';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(u),4000); });
+document.getElementById('sceneOpen').addEventListener('click',()=>document.getElementById('sceneFile').click());
+document.getElementById('sceneFile').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; e.target.value=''; if(!f)return;
+  const r=new FileReader(); r.onload=()=>applyScene(parseScene(r.result)); r.readAsText(f); });
+
+// ── midi in: CC1-7 = channel faders, CC8 = master, notes 36-42 = tabs ──
+function midiMap(st,d1,d2){ const kind=st&0xF0;
+  if(kind===0xB0){ if(d1>=1&&d1<=7) return {kind:'fader', id:INSTRUMENTS[d1-1].id, val:Math.round(d2/127*100)};
+    if(d1===8) return {kind:'fader', id:'master', val:Math.round(d2/127*100)}; return null; }
+  if(kind===0x90&&d2>0){ const i=d1-36; if(i>=0&&i<INSTRUMENTS.length) return {kind:'tab', id:INSTRUMENTS[i].id}; }
+  return null; }
+document.getElementById('midiBtn').addEventListener('click',async()=>{
+  const b=document.getElementById('midiBtn');
+  if(!navigator.requestMIDIAccess){ b.textContent='midi: not on this device'; setTimeout(()=>b.textContent='midi: off',2200); return; }
+  try{ const acc=await navigator.requestMIDIAccess();
+    const hook=()=>{ acc.inputs.forEach(inp=>{ inp.onmidimessage=m=>{ const a=midiMap(m.data[0],m.data[1],m.data[2]); if(!a)return;
+      if(a.kind==='fader'){ MIX[a.id]=a.val; if(a.id==='master')sendAllMix(); else sendMix(a.id); renderMixer(); }
+      else if(a.kind==='tab') show(a.id); }; }); };
+    hook(); acc.onstatechange=hook;
+    b.textContent='midi: on'; b.classList.add('on');
+  }catch(e){ b.textContent='midi: refused'; setTimeout(()=>b.textContent='midi: off',2200); } });
+
 // keep screen awake while anything is racked
 async function wake(){ try{ if('wakeLock' in navigator) await navigator.wakeLock.request('screen'); }catch(e){} }
 document.addEventListener('pointerdown',()=>{ if(Object.keys(frames).length) wake(); },{passive:true});
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&Object.keys(frames).length) wake(); });
 renderTabs();
-if(typeof window!=='undefined') window.__RACK={INSTRUMENTS, show, powerOff, frames:()=>Object.keys(frames), cur:()=>cur};
+if(typeof window!=='undefined') window.__RACK={INSTRUMENTS, show, powerOff, frames:()=>Object.keys(frames), cur:()=>cur, MIX, gainFor, midiMap, sceneObj, parseScene, applyScene};
 })();
 </script>
 </body>

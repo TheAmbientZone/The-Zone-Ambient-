@@ -168,6 +168,10 @@ setInterval(()=>{ if(!analyser){ $('scope').textContent=''; return; }
   for(let i=0;i<48;i++){ const v=Math.abs(d[Math.floor(i*d.length/48)]-128)/128; s2+=chars[Math.min(9,Math.floor(v*14))]; }
   $('scope').textContent=s2; },90);
 
+let ZMIX=1;
+window.addEventListener('message',ev=>{ const d=ev&&ev.data; if(!d||typeof d!=='object')return;
+  if(d.type==='zone-mix'){ ZMIX=Math.min(1,Math.max(0,+d.gain||0));
+    if(master) master.gain.setTargetAtTime(0.8*ZMIX, ctx.currentTime, 0.08); } });
 // boot
 print(['GREENSCREEN SOUND SYSTEM v1.0','(C) 1989-'+(new Date().getFullYear())+' BABAR HEAVY INDUSTRIES','640K RAM OK — SOUND CHIP DETECTED','','TYPE HELP AND PRESS ENTER. OR JUST TYPE: RANDOM','']);
 input.focus();
