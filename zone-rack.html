@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#07080f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Zone Rack">
+<title>The Zone Rack — all instruments, one stage</title>
+<style>
+  :root{ --bg:#07080f; --panel:#10152b; --line:#1c2440; --ink:#e8ecf7; --dim:#8792b3;
+    --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace; --disp:'Helvetica Neue',Arial,sans-serif; }
+  *{box-sizing:border-box}
+  html{touch-action:manipulation}
+  html,body{margin:0; height:100%}
+  body{background:var(--bg); color:var(--ink); font-family:var(--disp); min-height:100dvh; display:flex; flex-direction:column}
+  .bar{display:flex; gap:6px; align-items:stretch; padding:10px 10px 8px; overflow-x:auto; -webkit-overflow-scrolling:touch;
+    border-bottom:1px solid var(--line); background:rgba(7,8,15,.94); backdrop-filter:blur(6px)}
+  .tab{flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:4px; font-family:var(--mono); font-size:9px;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--dim); background:var(--panel); border:1px solid var(--line);
+    border-radius:10px; padding:8px 12px; cursor:pointer; position:relative; min-width:74px}
+  .tab .dot{width:10px; height:10px; border-radius:99px; background:var(--c,#555); opacity:.45}
+  .tab.cur{color:var(--ink); border-color:var(--c,#888); box-shadow:0 0 26px -10px var(--c,#888)}
+  .tab.cur .dot{opacity:1; box-shadow:0 0 10px -1px var(--c,#888)}
+  .tab.live::after{content:'●'; position:absolute; top:3px; right:6px; color:#54f06a; font-size:8px}
+  .tab .off{position:absolute; top:1px; left:5px; color:var(--dim); font-size:11px; display:none; padding:2px}
+  .tab.live .off{display:block}
+  .stage{flex:1; position:relative}
+  .stage iframe{position:absolute; inset:0; width:100%; height:100%; border:0; background:var(--bg)}
+  .stage iframe.hid{visibility:hidden; pointer-events:none}
+  .welcome{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; text-align:center; padding:24px}
+  .welcome h1{margin:0; font-weight:300; font-size:clamp(22px,5.5vw,34px); letter-spacing:.28em; text-indent:.28em}
+  .welcome p{max-width:440px; color:var(--dim); line-height:1.9; font-size:14px; margin:0}
+  .welcome p b{color:var(--ink)}
+  .foot{font-family:var(--mono); font-size:8.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim);
+    text-align:center; padding:7px 10px calc(7px + env(safe-area-inset-bottom)); border-top:1px solid var(--line)}
+  :focus-visible{outline:2px solid #7fd4ff; outline-offset:2px}
+</style>
+</head>
+<body>
+  <div class="bar" id="bar" role="tablist" aria-label="instruments"></div>
+  <div class="stage" id="stage">
+    <div class="welcome" id="welcome">
+      <h1>THE ZONE RACK</h1>
+      <p>every instrument on one stage. <b>tap a tab</b> to open one — and here's the trick: instruments <b>keep playing when you switch away</b>. start HAL droning, flip to SWELL and play chords over it, flip to the generator and build a beat on top. the green ● shows what's still sounding; tap the <b>×</b> on a live tab to silence that instrument.</p>
+      <p>layering tip: match keys — HAL root 65 Hz ≈ C, then SWELL and the generator in C, and everything agrees.</p>
+    </div>
+  </div>
+  <div class="foot">the zone rack · instruments run side by side · nothing uploaded</div>
+
+<script>
+"use strict";
+(function(){
+const INSTRUMENTS=[
+  {id:'gen',   label:'Generator', file:'ambient-music-generator-studio.html', c:'#c9c6ba'},
+  {id:'swell', label:'Swell',     file:'swell-slow-chord-machine.html',       c:'#9db8ff'},
+  {id:'gran',  label:'Granular',  file:'babars-granular-synth.html',          c:'#ff9d5c'},
+  {id:'hal',   label:'HAL 90026', file:'hal-90026-ipad-edition.html',         c:'#e8392a'},
+  {id:'inv',   label:'Invaders',  file:'invaders-granular-supersized.html',   c:'#54f06a'},
+  {id:'dos',   label:'Greenscrn', file:'greenscreen-sound-system.html',       c:'#33ff66'},
+  {id:'oracle',label:'Oracle',    file:'ambient-oracle-v2.html',              c:'#b98ae0'},
+];
+const bar=document.getElementById('bar'), stage=document.getElementById('stage'), welcome=document.getElementById('welcome');
+const frames={}; let cur=null;
+
+function renderTabs(){
+  bar.innerHTML='';
+  for(const ins of INSTRUMENTS){
+    const b=document.createElement('button');
+    b.className='tab'+(cur===ins.id?' cur':'')+(frames[ins.id]?' live':'');
+    b.style.setProperty('--c',ins.c);
+    b.setAttribute('role','tab'); b.setAttribute('aria-selected',cur===ins.id?'true':'false');
+    b.innerHTML='<span class="off" data-off="'+ins.id+'" role="button" aria-label="power off '+ins.label+'">×</span>'+
+      '<span class="dot"></span><span>'+ins.label+'</span>';
+    b.addEventListener('click',e=>{
+      const off=e.target.closest&&e.target.closest('[data-off]');
+      if(off){ powerOff(ins.id); e.stopPropagation(); return; }
+      show(ins.id); });
+    bar.appendChild(b);
+  }
+}
+function show(id){
+  const ins=INSTRUMENTS.find(x=>x.id===id); if(!ins)return;
+  welcome.style.display='none';
+  if(!frames[id]){
+    const f=document.createElement('iframe');
+    f.src=ins.file; f.title=ins.label;
+    f.setAttribute('allow','autoplay');
+    stage.appendChild(f); frames[id]=f;
+  }
+  cur=id;
+  for(const k in frames) frames[k].classList.toggle('hid',k!==id);
+  renderTabs();
+}
+function powerOff(id){
+  const f=frames[id]; if(!f)return;
+  f.remove(); delete frames[id];
+  if(cur===id){ cur=null; const liveIds=Object.keys(frames);
+    if(liveIds.length) show(liveIds[0]); else { welcome.style.display='flex'; renderTabs(); } }
+  else renderTabs();
+}
+// keep screen awake while anything is racked
+async function wake(){ try{ if('wakeLock' in navigator) await navigator.wakeLock.request('screen'); }catch(e){} }
+document.addEventListener('pointerdown',()=>{ if(Object.keys(frames).length) wake(); },{passive:true});
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&Object.keys(frames).length) wake(); });
+renderTabs();
+if(typeof window!=='undefined') window.__RACK={INSTRUMENTS, show, powerOff, frames:()=>Object.keys(frames), cur:()=>cur};
+})();
+</script>
+</body>
+</html>

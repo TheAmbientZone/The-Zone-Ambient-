@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>GREENSCREEN SOUND SYSTEM</title>
+<style>
+  :root{ --grn:#33ff66; --dim:#1a8f3c; --bg:#000; }
+  *{box-sizing:border-box}
+  html{touch-action:manipulation}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg); color:var(--grn); font-family:'Courier New',ui-monospace,monospace; min-height:100dvh;
+    display:flex; flex-direction:column; padding:10px 10px calc(10px + env(safe-area-inset-bottom));
+    text-shadow:0 0 6px rgba(51,255,102,.6); font-size:14px; line-height:1.45}
+  body::after{content:''; position:fixed; inset:0; pointer-events:none;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,0) 0 2px, rgba(0,0,0,.22) 2px 4px);}
+  #term{flex:1; overflow-y:auto; white-space:pre-wrap; word-break:break-word}
+  #term b{color:#aaffc3; font-weight:normal}
+  .inline{display:flex; gap:6px; align-items:center; border-top:1px solid var(--dim); padding-top:8px}
+  .inline span{flex:0 0 auto}
+  #cmd{flex:1; background:transparent; border:0; outline:none; color:var(--grn); font:inherit; text-shadow:inherit;
+    caret-color:var(--grn); text-transform:uppercase}
+  .fkeys{display:flex; gap:5px; flex-wrap:wrap; padding-top:8px}
+  .fkeys button{background:transparent; color:var(--dim); border:1px solid var(--dim); font:inherit; font-size:11px;
+    padding:8px 10px; cursor:pointer; text-shadow:inherit}
+  .fkeys button:active{color:var(--grn); border-color:var(--grn)}
+  #scope{color:var(--dim); min-height:1.4em}
+</style>
+</head>
+<body>
+  <div id="term"></div>
+  <div id="scope"></div>
+  <div class="inline"><span>C:\SYNTH&gt;</span><input id="cmd" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="command"></div>
+  <div class="fkeys">
+    <button data-k="HELP" type="button">F1 HELP</button>
+    <button data-k="PLAY C3 E3 G3" type="button">F2 CHORD</button>
+    <button data-k="SEQ C3 . E3 . G2 . B2 ." type="button">F3 SEQ</button>
+    <button data-k="DRONE C2" type="button">F4 DRONE</button>
+    <button data-k="RANDOM" type="button">F5 RANDOM</button>
+    <button data-k="STOP" type="button">F6 STOP</button>
+  </div>
+
+<script>
+"use strict";
+(function(){
+const $=id=>document.getElementById(id);
+const term=$('term'), input=$('cmd');
+const NOTE_RE=/^([A-G])(#|B)?(-?\d)$/;
+const SEMI={C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+function parseNote(tok){ const m=String(tok).toUpperCase().match(NOTE_RE); if(!m)return null;
+  let n=SEMI[m[1]]; if(m[2]==='#')n+=1; if(m[2]==='B')n-=1;
+  const oct=parseInt(m[3],10); if(oct<0||oct>8)return null;
+  return 12*(oct+1)+n; } // C4 = 60
+const mtof=n=>440*Math.pow(2,(n-69)/12);
+
+// ── state ──
+const S={ bpm:100, wave:'square', filter:2200, echo:true, seq:null, seqPos:0, drone:null, playing:false };
+let ctx=null, master=null, lp=null, del=null, delFb=null, delLvl=null, analyser=null, droneNodes=null, timer=null, nextT=0;
+
+function ensureCtx(){ if(ctx)return;
+  const AC=window.AudioContext||window.webkitAudioContext; ctx=new AC();
+  master=ctx.createGain(); master.gain.value=0.8;
+  lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=S.filter; lp.Q.value=1.1;
+  del=ctx.createDelay(1.5); del.delayTime.value=0.3; delFb=ctx.createGain(); delFb.gain.value=0.4;
+  delLvl=ctx.createGain(); delLvl.gain.value=S.echo?0.4:0;
+  analyser=ctx.createAnalyser(); analyser.fftSize=64;
+  lp.connect(master); lp.connect(del); del.connect(delFb); delFb.connect(del); del.connect(delLvl); delLvl.connect(master);
+  const comp=ctx.createDynamicsCompressor(); comp.threshold.value=-10; comp.ratio.value=10;
+  master.connect(comp); comp.connect(analyser); analyser.connect(ctx.destination);
+  const wake=()=>{ if(ctx&&ctx.state!=='running')ctx.resume().catch(()=>{}); };
+  ['pointerdown','keydown'].forEach(ev=>document.addEventListener(ev,wake,{passive:true}));
+}
+function blip(midi,t,dur,vel){ const o=ctx.createOscillator(); o.type=S.wave; o.frequency.value=mtof(midi);
+  const g=ctx.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime((vel||0.5),t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g); g.connect(lp); o.start(t); o.stop(t+dur+0.05); }
+function setDrone(midi){ killDrone();
+  if(midi==null)return;
+  droneNodes=[]; const g=ctx.createGain(); g.gain.value=0.0001; g.connect(lp);
+  g.gain.setTargetAtTime(0.25,ctx.currentTime,1.2);
+  [[0,-6],[0,6],[12,0]].forEach(([off,det])=>{ const o=ctx.createOscillator(); o.type='sawtooth';
+    o.frequency.value=mtof(midi+off); o.detune.value=det; o.connect(g); o.start(); droneNodes.push(o); });
+  droneNodes.push(g); S.drone=midi; }
+function killDrone(){ if(droneNodes){ const g=droneNodes[droneNodes.length-1];
+  try{ g.gain.setTargetAtTime(0.0001,ctx.currentTime,0.6); }catch(e){}
+  const nodes=droneNodes; setTimeout(()=>nodes.forEach(n=>{try{n.stop&&n.stop()}catch(e){} try{n.disconnect&&n.disconnect()}catch(e){}}),2500);
+  droneNodes=null; } S.drone=null; }
+function seqTick(){ if(!S.playing||!S.seq){ return; }
+  const step=60/S.bpm/2; // 8th notes
+  while(nextT<ctx.currentTime+0.15){
+    const tok=S.seq[S.seqPos%S.seq.length];
+    if(tok!=='.'){ blip(tok, nextT, step*0.9, 0.5); }
+    S.seqPos++; nextT+=step; }
+  timer=setTimeout(seqTick,40); }
+function startSeq(){ if(!S.seq)return; S.playing=true; S.seqPos=0; nextT=ctx.currentTime+0.06; clearTimeout(timer); seqTick(); }
+function stopAll(){ S.playing=false; clearTimeout(timer); killDrone(); }
+
+// ── command engine (pure-ish: returns lines; audio guarded) ──
+const HELP=[
+ 'GREENSCREEN SOUND SYSTEM — COMMANDS:',
+ '  PLAY C3 [E3 G3..]   play note(s). C4 = middle C. sharps: C#3, flats: DB3',
+ '  SEQ C3 . E3 G2 ..   loop a pattern of notes ("." = rest, 8th notes)',
+ '  DRONE C2 / DRONE OFF  endless drone / kill it',
+ '  BPM 40-220           sequence speed',
+ '  WAVE SQUARE|SAW|TRI|SINE',
+ '  FILTER 100-8000      darker .. brighter',
+ '  ECHO ON|OFF',
+ '  RANDOM               a sequence invented for you',
+ '  STOP                 silence everything   CLS  clear screen',
+];
+function execute(line){
+  const raw=String(line||'').trim(); if(!raw)return [];
+  const parts=raw.toUpperCase().split(/\s+/); const cmd=parts[0], args=parts.slice(1);
+  const audio=(fn)=>{ if(typeof window!=='undefined'&&(window.AudioContext||window.webkitAudioContext)){ ensureCtx(); if(ctx.state==='suspended')ctx.resume(); fn(); } };
+  switch(cmd){
+    case 'HELP': case '?': return HELP;
+    case 'PLAY': { const notes=args.map(parseNote);
+      if(!args.length||notes.some(n=>n===null)) return ['SYNTAX: PLAY C3 [E3 G3 ...]'];
+      audio(()=>{ const t=ctx.currentTime+0.03; notes.forEach(n=>blip(n,t,0.8,0.45)); });
+      return ['PLAYING: '+args.join(' ')]; }
+    case 'SEQ': { if(!args.length) return ['SYNTAX: SEQ C3 . E3 G2 (dots are rests)'];
+      const toks=args.map(a=>a==='.'?'.':parseNote(a));
+      if(toks.some(t=>t===null)) return ['BAD NOTE IN SEQUENCE.'];
+      S.seq=toks; audio(startSeq);
+      return ['SEQUENCE LOOPING ('+args.length+' STEPS @ '+S.bpm+' BPM). "STOP" TO END.']; }
+    case 'DRONE': { if(args[0]==='OFF'){ audio(killDrone); return ['DRONE TERMINATED.']; }
+      const n=parseNote(args[0]||'C2'); if(n===null) return ['SYNTAX: DRONE C2   or   DRONE OFF'];
+      audio(()=>setDrone(n)); return ['DRONE ENGAGED: '+(args[0]||'C2')+'. IT WILL NOT STOP UNTIL YOU SAY SO.']; }
+    case 'BPM': { const b=parseInt(args[0],10); if(!(b>=40&&b<=220)) return ['BPM MUST BE 40-220.'];
+      S.bpm=b; return ['TEMPO: '+b+' BPM.']; }
+    case 'WAVE': { const w={SQUARE:'square',SQR:'square',SAW:'sawtooth',SAWTOOTH:'sawtooth',TRI:'triangle',TRIANGLE:'triangle',SINE:'sine',SIN:'sine'}[args[0]];
+      if(!w) return ['WAVES: SQUARE SAW TRI SINE']; S.wave=w; return ['OSCILLATOR: '+args[0]]; }
+    case 'FILTER': { const f=parseInt(args[0],10); if(!(f>=100&&f<=8000)) return ['FILTER MUST BE 100-8000.'];
+      S.filter=f; if(lp)lp.frequency.setTargetAtTime(f,ctx.currentTime,0.1); return ['FILTER: '+f+' HZ.']; }
+    case 'ECHO': { if(args[0]==='ON'){S.echo=true;} else if(args[0]==='OFF'){S.echo=false;} else return ['ECHO ON or ECHO OFF.'];
+      if(delLvl)delLvl.gain.setTargetAtTime(S.echo?0.4:0,ctx.currentTime,0.1); return ['ECHO '+(S.echo?'ON':'OFF')+'.']; }
+    case 'RANDOM': { const scale=[45,48,50,52,55,57,60,62,64,67]; const len=8+Math.floor(Math.random()*8);
+      const toks=[]; for(let i=0;i<len;i++) toks.push(Math.random()<0.3?'.':scale[Math.floor(Math.random()*scale.length)]);
+      S.seq=toks; audio(startSeq);
+      const names=toks.map(t=>t==='.'?'.':['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'][t%12]+(Math.floor(t/12)-1));
+      return ['INVENTED: '+names.join(' '),'LOOPING. "STOP" TO END, "RANDOM" FOR ANOTHER.']; }
+    case 'STOP': audio(stopAll); return ['ALL VOICES SILENCED.'];
+    case 'CLS': term.textContent=''; return [];
+    case 'DIR': return [' VOLUME IN DRIVE C IS AMBIENT','','  SYNTH    EXE   48,204  01-01-90','  DREAMS   TXT   ∞','  README   TXT      312','','  3 FILE(S)  — TYPE README FOR WISDOM'];
+    case 'README': case 'TYPE': return ['"THE DRONE DOES NOT HURRY, YET EVERYTHING GETS PLAYED." — ANON, 1989'];
+    case 'FORMAT': return ['NICE TRY.'];
+    case 'EXIT': case 'QUIT': return ['THERE IS NO EXIT. ONLY DRONE.'];
+    default: return ["BAD COMMAND OR FILE NAME. TYPE HELP."];
+  }
+}
+
+// ── terminal io ──
+function print(lines){ for(const l of [].concat(lines)) term.textContent+=l+'\n'; term.scrollTop=term.scrollHeight; }
+function submit(){ const v=input.value; input.value='';
+  print('C:\\SYNTH> '+v.toUpperCase()); print(execute(v)); }
+input.addEventListener('keydown',e=>{ if(e.key==='Enter')submit(); });
+document.querySelectorAll('.fkeys button').forEach(b=>b.addEventListener('click',()=>{ input.value=b.dataset.k; submit(); input.focus(); }));
+document.body.addEventListener('click',e=>{ if(e.target===document.body||e.target===term)input.focus(); });
+
+// ascii scope
+setInterval(()=>{ if(!analyser){ $('scope').textContent=''; return; }
+  const d=new Uint8Array(analyser.fftSize); analyser.getByteTimeDomainData(d);
+  const chars=' .:-=+*#%@'; let s2='';
+  for(let i=0;i<48;i++){ const v=Math.abs(d[Math.floor(i*d.length/48)]-128)/128; s2+=chars[Math.min(9,Math.floor(v*14))]; }
+  $('scope').textContent=s2; },90);
+
+// boot
+print(['GREENSCREEN SOUND SYSTEM v1.0','(C) 1989-'+(new Date().getFullYear())+' BABAR HEAVY INDUSTRIES','640K RAM OK — SOUND CHIP DETECTED','','TYPE HELP AND PRESS ENTER. OR JUST TYPE: RANDOM','']);
+input.focus();
+if(typeof window!=='undefined') window.__DOS={parseNote,execute,S};
+})();
+</script>
+</body>
+</html>

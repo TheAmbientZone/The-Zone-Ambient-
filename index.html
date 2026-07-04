@@ -30,6 +30,8 @@
   .card p{margin:0; font-size:13px; line-height:1.65; color:var(--dim)}
   .card .tag{display:inline-block; margin-top:8px; font-family:var(--mono); font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); border:1px solid var(--line); border-radius:999px; padding:4px 10px}
 
+  .c-rack .orb{background:conic-gradient(#9db8ff,#ff9d5c,#e8392a,#54f06a,#b98ae0,#9db8ff); box-shadow:0 0 44px -8px #9db8ff}
+  .c-rack:hover{border-color:#9db8ff; box-shadow:0 0 60px -20px #9db8ff}
   .c-swell .orb{background:radial-gradient(circle at 35% 30%, #dfe9ff, #9db8ff 45%, #22315f 100%); box-shadow:0 0 44px -8px #9db8ff}
   .c-swell:hover{border-color:#9db8ff; box-shadow:0 0 60px -22px #9db8ff}
   .c-hal .orb{background:radial-gradient(circle at 50% 45%, #fff7cc 0%, #ffd34d 10%, #e8392a 38%, #40060a 100%); box-shadow:0 0 44px -8px #e8392a}
@@ -40,6 +42,10 @@
   .c-oracle:hover{border-color:#b98ae0; box-shadow:0 0 60px -22px #b98ae0}
   .c-inv .orb{background:radial-gradient(circle at 40% 32%, #bfffcb, #54f06a 45%, #06240d 100%); box-shadow:0 0 44px -8px #54f06a}
   .c-inv:hover{border-color:#54f06a; box-shadow:0 0 60px -22px #54f06a}
+  .c-gran .orb{background:radial-gradient(circle at 38% 30%, #ffe4c9, #ff9d5c 45%, #3a1608 100%); box-shadow:0 0 44px -8px #ff9d5c}
+  .c-gran:hover{border-color:#ff9d5c; box-shadow:0 0 60px -22px #ff9d5c}
+  .c-dos .orb{background:radial-gradient(circle at 40% 34%, #ccffdd, #33ff66 40%, #032b10 100%); box-shadow:0 0 44px -8px #33ff66; border-radius:6px}
+  .c-dos:hover{border-color:#33ff66; box-shadow:0 0 60px -22px #33ff66}
 
   footer{margin-top:40px; text-align:center; font-family:var(--mono); font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); line-height:2.1}
   :focus-visible{outline:2px solid #9db8ff; outline-offset:3px}
@@ -53,12 +59,30 @@
   </header>
 
   <nav class="grid" aria-label="instruments">
+    <a class="card c-rack" href="zone-rack.html">
+      <span class="orb" aria-hidden="true"></span>
+      <span>
+        <h2>The Zone Rack</h2>
+        <p>All seven instruments on one stage. Switch with tabs — instruments keep playing in the background, so you can layer HAL under SWELL under the Generator.</p>
+        <span class="tag">groovebox · layer · perform</span>
+      </span>
+    </a>
+
     <a class="card c-swell" href="swell-slow-chord-machine.html">
       <span class="orb" aria-hidden="true"></span>
       <span>
         <h2>SWELL</h2>
         <p>The slow chord machine. Five huge buttons, chords that glide into each other. Start here.</p>
         <span class="tag">play · learn · record</span>
+      </span>
+    </a>
+
+    <a class="card c-gran" href="babars-granular-synth.html">
+      <span class="orb" aria-hidden="true"></span>
+      <span>
+        <h2>Babar's Granular Synth</h2>
+        <p>Touch the waveform and clouds of sound-grains bloom under your fingers. Scale-snapped, latchable, records itself.</p>
+        <span class="tag">perform · sculpt · record</span>
       </span>
     </a>
 
@@ -95,6 +119,14 @@
         <h2>The Ambient Oracle</h2>
         <p>Answer eight questions — or let it listen — and it divines which ambient artist your track descends from.</p>
         <span class="tag">divine · analyse · share</span>
+      </span>
+    </a>
+    <a class="card c-dos" href="greenscreen-sound-system.html">
+      <span class="orb" aria-hidden="true"></span>
+      <span>
+        <h2>Greenscreen Sound System</h2>
+        <p>A 1989 terminal that drones. Type PLAY C3, SEQ, DRONE, RANDOM — green phosphor, scanlines, no mouse required.</p>
+        <span class="tag">type · loop · drone</span>
       </span>
     </a>
   </nav>
