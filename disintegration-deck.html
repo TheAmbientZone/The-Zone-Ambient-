@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0d0b08">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tape Loops">
+<title>The Disintegration Deck — tape loops that die beautifully</title>
+<style>
+  :root{ --bg:#0d0b08; --shell:#2a2118; --shell2:#1c1610; --line:#4a3b28; --ink:#e8ddc8; --dim:#93856b;
+    --amber:#e8a13c; --red:#c94f2f; --tape:#6b5335;
+    --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace; --disp:'Helvetica Neue',Arial,sans-serif; }
+  *{box-sizing:border-box}
+  html{touch-action:manipulation}
+  html,body{margin:0;height:100%}
+  body{background:radial-gradient(120% 70% at 50% 0%, #1a1410 0%, var(--bg) 60%); color:var(--ink); font-family:var(--disp);
+    min-height:100dvh; display:flex; flex-direction:column; gap:10px; padding:14px 12px calc(16px + env(safe-area-inset-bottom)); -webkit-font-smoothing:antialiased}
+  header{display:flex; align-items:baseline; justify-content:space-between; gap:8px}
+  h1{margin:0; font-weight:300; font-size:clamp(15px,4.2vw,22px); letter-spacing:.16em}
+  h1 b{font-weight:700; color:var(--amber)}
+  .np{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; color:var(--dim); text-transform:uppercase; text-align:right}
+
+  .gate{position:fixed; inset:0; z-index:9; background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; padding:24px; text-align:center}
+  .gate.hide{opacity:0; pointer-events:none; transition:opacity .9s ease}
+  .gate p{max-width:440px; line-height:1.9; color:var(--dim); font-size:14px; margin:0}
+  .gate p b{color:var(--amber)}
+  .begin{font-family:var(--mono); font-size:14px; letter-spacing:.26em; text-transform:uppercase; color:#0d0b08; background:var(--amber);
+    border:0; border-radius:999px; padding:20px 42px; cursor:pointer; box-shadow:0 0 60px -8px var(--amber)}
+
+  /* ── the cassettes ── */
+  .decks{display:grid; grid-template-columns:1fr; gap:10px; flex:1}
+  @media(min-width:700px){ .decks{grid-template-columns:1fr 1fr} }
+  .cass{background:linear-gradient(180deg,var(--shell) 0%,var(--shell2) 100%); border:1px solid var(--line); border-radius:12px;
+    padding:9px 11px 10px; position:relative; box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 6px 18px -12px #000}
+  .cass::before{content:''; position:absolute; left:12px; right:12px; top:6px; height:2px; background:repeating-linear-gradient(90deg,var(--line) 0 6px,transparent 6px 12px); opacity:.5}
+  .label{background:#efe6cf; color:#3a2f1e; border-radius:4px; padding:5px 9px; display:flex; justify-content:space-between; align-items:baseline; gap:8px;
+    font-family:var(--mono); font-size:9.5px; letter-spacing:.06em; box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+  .label .nm{font-weight:700; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .label .st{color:#7a5c2e; white-space:nowrap}
+  .window{display:flex; align-items:center; gap:8px; margin:8px 2px 6px}
+  .reel{width:44px; height:44px; flex:0 0 auto; border-radius:50%; border:3px solid #0e0b07; position:relative;
+    background:radial-gradient(circle at 50% 50%, #0e0b07 0 26%, var(--tape) 26% 88%, #0e0b07 88%)}
+  .reel .hub{position:absolute; inset:12px; border-radius:50%; background:#d9cfb6;
+    -webkit-mask:conic-gradient(#000 0 20deg,transparent 20deg 60deg,#000 60deg 80deg,transparent 80deg 120deg,#000 120deg 140deg,transparent 140deg 180deg,#000 180deg 200deg,transparent 200deg 240deg,#000 240deg 260deg,transparent 260deg 300deg,#000 300deg 320deg,transparent 320deg 360deg);
+            mask:conic-gradient(#000 0 20deg,transparent 20deg 60deg,#000 60deg 80deg,transparent 80deg 120deg,#000 120deg 140deg,transparent 140deg 180deg,#000 180deg 200deg,transparent 200deg 240deg,#000 240deg 260deg,transparent 260deg 300deg,#000 300deg 320deg,transparent 320deg 360deg)}
+  canvas.tapeview{flex:1; height:44px; background:#0e0b07; border-radius:6px; display:block; min-width:0}
+  .drow{display:flex; gap:5px; align-items:center; flex-wrap:wrap}
+  .db{font-family:var(--mono); font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); background:rgba(0,0,0,.25);
+    border:1px solid var(--line); border-radius:7px; padding:9px 10px; cursor:pointer}
+  .db.on{color:#0d0b08; background:var(--amber); border-color:var(--amber)}
+  .db.recing{color:#fff; background:var(--red); border-color:var(--red); animation:pulse 1s infinite}
+  @keyframes pulse{50%{opacity:.6}}
+  .dctl{display:flex; align-items:center; gap:5px; flex:1; min-width:110px}
+  .dctl label{font-family:var(--mono); font-size:8px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim)}
+  .dctl input[type=range]{-webkit-appearance:none; appearance:none; flex:1; height:4px; background:var(--line); border-radius:2px; min-width:50px}
+  .dctl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:24px; height:24px; border-radius:50%; background:var(--amber); cursor:pointer}
+  .dctl input[type=range]::-moz-range-thumb{width:24px; height:24px; border:0; border-radius:50%; background:var(--amber)}
+
+  .grow{flex:1}
+  .row{display:flex; gap:6px; flex-wrap:wrap; align-items:center}
+  .btn{font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); background:rgba(0,0,0,.25);
+    border:1px solid var(--line); border-radius:999px; padding:11px 13px; cursor:pointer}
+  .btn.on{color:#0d0b08; background:var(--amber); border-color:var(--amber)}
+  .btn.rec{color:var(--red); border-color:var(--red)}
+  .btn.rec.on{color:#fff; background:var(--red)}
+  select.btn{padding:10px 11px}
+  .gctl{display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:8.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim)}
+  .gctl input[type=range]{-webkit-appearance:none; appearance:none; width:70px; height:4px; background:var(--line); border-radius:2px}
+  .gctl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:24px; height:24px; border-radius:50%; background:var(--amber); cursor:pointer}
+  .gctl input[type=range]::-moz-range-thumb{width:24px; height:24px; border:0; border-radius:50%; background:var(--amber)}
+  .hint{font-family:var(--mono); font-size:8.5px; letter-spacing:.05em; color:var(--dim); line-height:1.8; margin:0}
+  .hint b{color:var(--amber); font-weight:400}
+  input[type=file]{display:none}
+  :focus-visible{outline:2px solid var(--amber); outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){ .gate.hide{transition:none} .db.recing{animation:none} }
+</style>
+</head>
+<body>
+  <div class="gate" id="gate">
+    <h1>THE <b>DISINTEGRATION</b> DECK</h1>
+    <p>four tape loops. record something onto a cassette — a built-in melody, your own file, or the <b>microphone</b> (hold the phone near anything: your voice, HAL droning, the rain). the loop plays forever. then raise <b>decay</b>: every pass, the tape itself erodes — duller, gapped, hissier — until the melody you loved is dust. that's the instrument: <b>choosing what to lose, and how slowly.</b></p>
+    <button class="begin" id="begin" type="button">begin</button>
+    <p class="hint">after basinski · nothing uploaded · the decay is real — record the output, because the loop won't come back</p>
+  </div>
+
+  <header>
+    <h1>THE <b>DISINTEGRATION</b> DECK</h1>
+    <div class="np" id="np">—</div>
+  </header>
+
+  <div class="row">
+    <select class="btn" id="srcSel" aria-label="what gets recorded onto tape"></select>
+    <select class="btn" id="lenSel" aria-label="loop length">
+      <option value="2">2s loop</option><option value="4" selected>4s loop</option><option value="8">8s loop</option>
+    </select>
+    <button class="btn" id="fileBtn" type="button">load file</button>
+    <span class="grow"></span>
+    <button class="btn rec" id="recOut" type="button">● rec output</button>
+  </div>
+
+  <div class="decks" id="decks"></div>
+
+  <div class="row">
+    <span class="gctl">dust <input id="dust" type="range" min="0" max="100" value="25" aria-label="dust and crackle"></span>
+    <span class="gctl">air <input id="air" type="range" min="0" max="100" value="40" aria-label="reverb"></span>
+    <span class="gctl">warmth <input id="warm" type="range" min="0" max="100" value="30" aria-label="tape saturation"></span>
+    <span class="gctl">master <input id="master" type="range" min="0" max="100" value="80" aria-label="master volume"></span>
+  </div>
+  <p class="hint"><b>rec ●</b> on a cassette records the selected source onto it (mic asks permission — that's your phone, not the internet). <b>decay 0</b> = the loop is immortal. decay up = it dies in minutes; the label counts passes and health. <b>½/1/2</b> is tape speed, <b>rev</b> flips the reel. stagger two cassettes with the same source at different speeds and let them drift apart — the oldest trick in ambient. <b>● rec output</b> saves everything to WAV: the only way to keep what the tape is losing.</p>
+  <input type="file" id="fileIn" accept="audio/*">
+
+<script>
+"use strict";
+(function(){
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const NDECKS=4, SR_FALLBACK=44100;
+
+// ── built-in sources (pure generators) ────────────────────────────────
+function genSource(name, sr, seconds){
+  const n=Math.floor(sr*seconds), out=new Float32Array(n);
+  if(name==='melody'){ // a small melancholy phrase — the thing you'll grieve
+    const seq=[[0,62,1.4],[1.5,65,1.2],[2.9,69,1.6],[4.6,67,1.2],[5.9,65,2.0]]; // D F A G F
+    const mtof=m=>440*Math.pow(2,(m-69)/12);
+    for(const [st,m,dur] of seq){ const s0=Math.floor(st*sr), f=mtof(m);
+      for(const [h,a] of [[1,0.28],[2,0.1],[3,0.05],[4.01,0.02]]){
+        for(let i=s0;i<Math.min(n,s0+dur*sr);i++){ const t=(i-s0)/sr;
+          out[i]+=a*Math.sin(2*Math.PI*f*h*t)*Math.min(1,t*8)*Math.exp(-t*1.4); } } }
+    // soft pad bed underneath
+    let p1=0,p2=0; for(let i=0;i<n;i++){ const t=i/sr; p1+=2*Math.PI*146.8/sr; p2+=2*Math.PI*220.4/sr;
+      out[i]+=(Math.sin(p1)+Math.sin(p2)*0.7)*0.05*(0.6+0.4*Math.sin(2*Math.PI*0.08*t)); } }
+  else if(name==='choir'){ const f0=110;
+    for(let v=0;v<5;v++){ const det=1+(v-2)*0.004; let ph=Math.sin(v*7)*3.1;
+      for(let i=0;i<n;i++){ const t=i/sr;
+        const f=f0*det*(v===4?2:v===3?1.5:1)*(1+0.006*Math.sin(2*Math.PI*(0.11+v*0.03)*t+v));
+        ph+=2*Math.PI*f/sr; out[i]+=Math.sin(ph)*0.14*(0.7+0.3*Math.sin(2*Math.PI*0.05*t+v)); } } }
+  else if(name==='strings'){ const f0=98; let lp=0;
+    for(let v=0;v<6;v++){ let ph=v*1.7; const det=1+(v-2.5)*0.006, mul=[1,1,1.5,1.5,2,3][v];
+      for(let i=0;i<n;i++){ const t=i/sr; ph+=2*Math.PI*f0*mul*det/sr;
+        const saw=2*((ph/(2*Math.PI))%1)-1; out[i]+=saw*0.055*(0.6+0.4*Math.sin(2*Math.PI*0.06*t+v)); } }
+    for(let i=0;i<n;i++){ lp+=0.12*(out[i]-lp); out[i]=lp; } }
+  else { // 'field' — distant weather
+    let l1=0,l2=0; for(let i=0;i<n;i++){ const t=i/sr; const w=(Math.random()*2-1);
+      l1=l1*0.985+w*0.015; l2=l2*0.9995+l1*0.0005;
+      out[i]=(l1*0.6+l2*9)*(0.5+0.5*Math.sin(2*Math.PI*0.05*t)); } }
+  let pk=0; for(let i=0;i<n;i++)pk=Math.max(pk,Math.abs(out[i]));
+  if(pk>0){ const g=0.8/pk; for(let i=0;i<n;i++)out[i]*=g; }
+  return out;
+}
+const BUILTINS=[['melody','faded melody'],['choir','ghost choir'],['strings','old strings'],['field','distant weather']];
+
+// ── the disintegration itself (pure, destructive, testable) ──────────
+function rms(d){ let e=0; for(let i=0;i<d.length;i++)e+=d[i]*d[i]; return Math.sqrt(e/d.length); }
+function degradePass(data, amt, rng){ // amt 0..1 — one pass of erosion. mutates data.
+  if(amt<=0) return;
+  const n=data.length;
+  // the oxide dulls: one-pole lowpass, stronger with amt
+  const k=1-amt*0.32; let y=0;
+  for(let i=0;i<n;i++){ y=y*(1-k)+data[i]*k; data[i]=y; }
+  // flakes fall off: dropouts — real gouges, more and longer as amt rises
+  const drops=1+Math.floor(rng()*amt*9);
+  for(let d2=0; d2<drops; d2++){ const len=Math.min(n-2, 30+Math.floor(rng()*rng()*amt*n*0.06));
+    const at=Math.floor(rng()*(n-len)); const depth=0.2+rng()*0.75;
+    for(let i=0;i<len;i++){ const w=Math.sin(Math.PI*i/len); data[at+i]*=(1-depth*w); } }
+  // the machine grinds hiss into it, and the level sags
+  const hiss=amt*0.0015, sag=1-amt*0.06;
+  for(let i=0;i<n;i++){ data[i]=Math.tanh(data[i])*sag + (rng()*2-1)*hiss; }
+}
+function takeSlice(src, sr, seconds, rng){
+  const want=Math.floor(sr*seconds), out=new Float32Array(want);
+  if(src.length<=want){ for(let i=0;i<want;i++) out[i]=src[i%src.length]; }
+  else { const at=Math.floor(rng()*(src.length-want)); out.set(src.subarray(at,at+want)); }
+  // loop-smooth the seam: crossfade last 40ms into start
+  const xf=Math.min(Math.floor(sr*0.04), want>>2);
+  for(let i=0;i<xf;i++){ const a=i/xf; out[want-xf+i]=out[want-xf+i]*(1-a)+out[i]*a; }
+  return out;
+}
+
+// ── machine state ─────────────────────────────────────────────────────
+let ctx=null, G=null, micStream=null;
+let recNode=null, recSink=null, recOn=false, recChunks=[];
+const decks=[]; // {name, data(Float32|null), rms0, pass, playing, rate, rev, decay(0-100), vol, gain, nextT, recing, el:{}}
+let armSrc='melody', loopLen=4;
+
+function makeIR(sec){ const sr=ctx.sampleRate, len=Math.floor(sr*sec), b=ctx.createBuffer(2,len,sr);
+  for(let c=0;c<2;c++){ const d=b.getChannelData(c); for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.2); } return b; }
+function genCrackle(sr){ const n=sr*3, b=ctx.createBuffer(1,n,sr), d=b.getChannelData(0);
+  let lp=0; for(let i=0;i<n;i++){ let v=(Math.random()*2-1)*0.05;
+    if(Math.random()<0.0015) v+= (Math.random()*2-1)*0.8;   // pops
+    lp=lp*0.7+v*0.3; d[i]=lp; } return b; }
+function warmCurve(amt){ const n=512,c=new Float32Array(n); const k=1+amt/100*3;
+  for(let i=0;i<n;i++){ const x=i/(n-1)*2-1; c[i]=Math.tanh(k*x)/Math.tanh(k); } return c; }
+function ensureCtx(){ if(ctx)return;
+  const AC=window.AudioContext||window.webkitAudioContext; ctx=new AC(); G={};
+  G.master=ctx.createGain(); G.master.gain.value=+$('master').value/100*0.9;
+  G.limit=ctx.createDynamicsCompressor(); G.limit.threshold.value=-9; G.limit.ratio.value=12; G.limit.attack.value=0.004; G.limit.release.value=0.25;
+  G.shape=ctx.createWaveShaper(); G.shape.curve=warmCurve(+$('warm').value); G.shape.oversample='2x';
+  G.bus=ctx.createGain(); G.bus.connect(G.shape); G.shape.connect(G.master);
+  G.verb=ctx.createConvolver(); G.verb.buffer=makeIR(4.5); G.verbLvl=ctx.createGain(); G.verbLvl.gain.value=+$('air').value/100*0.8;
+  G.shape.connect(G.verb); G.verb.connect(G.verbLvl); G.verbLvl.connect(G.master);
+  G.master.connect(G.limit); G.limit.connect(ctx.destination);
+  // dust bed
+  G.dustSrc=ctx.createBufferSource(); G.dustSrc.buffer=genCrackle(ctx.sampleRate); G.dustSrc.loop=true;
+  G.dustLp=ctx.createBiquadFilter(); G.dustLp.type='lowpass'; G.dustLp.frequency.value=5200;
+  G.dust=ctx.createGain(); G.dust.gain.value=Math.pow(+$('dust').value/100,1.6)*0.5;
+  G.dustSrc.connect(G.dustLp); G.dustLp.connect(G.dust); G.dust.connect(G.master); G.dustSrc.start();
+  // output recorder
+  recNode=ctx.createScriptProcessor(4096,2,2); recSink=ctx.createGain(); recSink.gain.value=0;
+  G.limit.connect(recNode); recNode.connect(recSink); recSink.connect(ctx.destination);
+  recNode.onaudioprocess=e=>{ if(!recOn)return;
+    if(recChunks.length*4096>ctx.sampleRate*60*15){ toggleRecOut(); return; }
+    recChunks.push([new Float32Array(e.inputBuffer.getChannelData(0)),new Float32Array(e.inputBuffer.getChannelData(1))]); };
+  const wake=()=>{ if(ctx&&ctx.state!=='running')ctx.resume().catch(()=>{}); };
+  ['pointerdown','keydown'].forEach(ev=>document.addEventListener(ev,wake,{passive:true}));
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden){wake(); requestWake();} });
+  for(const d of decks){ d.gain=ctx.createGain(); d.gain.gain.value=Math.pow(d.vol/100,1.4);
+    d.pan=ctx.createStereoPanner?ctx.createStereoPanner():null;
+    if(d.pan){ d.pan.pan.value=(d.i-1.5)*0.25; d.gain.connect(d.pan); d.pan.connect(G.bus); } else d.gain.connect(G.bus); }
+}
+async function requestWake(){ try{ if('wakeLock' in navigator) await navigator.wakeLock.request('screen'); }catch(e){} }
+
+// ── the loop engine: every pass is scheduled, then the tape erodes ────
+function health(d){ return d.rms0>0? clamp(rms(d.data)/d.rms0,0,1):0; }
+function schedTick(){
+  if(ctx){ const now=ctx.currentTime, ahead=now+0.35;
+    for(const d of decks){ if(!d.playing||!d.data)continue;
+      if(d.nextT==null||d.nextT<now-0.05) d.nextT=now+0.03;
+      while(d.nextT<ahead){
+        const buf=ctx.createBuffer(1,d.data.length,ctx.sampleRate);
+        buf.getChannelData(0).set(d.data);
+        const src=ctx.createBufferSource(); src.buffer=buf;
+        const wear=1-health(d);
+        const jitter=1+(Math.random()*2-1)*(0.001+wear*0.006);       // old tape wows
+        src.playbackRate.value=d.rate*jitter;
+        src.connect(d.gain); src.start(d.nextT);
+        const dur=d.data.length/ctx.sampleRate/(d.rate*jitter);
+        d.nextT+=dur; d.pass++;
+        degradePass(d.data, Math.pow(d.decay/100,1.5)*0.5, Math.random);
+        d.dirty=true;
+      } } }
+  setTimeout(schedTick,60);
+}
+
+// ── mic + file + builtin recording onto a cassette ────────────────────
+async function recordOnto(d){
+  ensureCtx(); if(ctx.state==='suspended')ctx.resume();
+  if(d.recing)return;
+  const sr=ctx.sampleRate, want=Math.floor(loopLen*sr);
+  if(armSrc==='mic'){
+    d.recing=true; updDeck(d);
+    try{
+      if(!micStream) micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false}});
+      const msrc=ctx.createMediaStreamSource(micStream);
+      const tap=ctx.createScriptProcessor(4096,1,1), sink=ctx.createGain(); sink.gain.value=0;
+      const got=new Float32Array(want); let at=0;
+      msrc.connect(tap); tap.connect(sink); sink.connect(ctx.destination);
+      await new Promise(res=>{ tap.onaudioprocess=e=>{ const ch=e.inputBuffer.getChannelData(0);
+        const n=Math.min(ch.length,want-at); got.set(ch.subarray(0,n),at); at+=n;
+        if(at>=want){ tap.disconnect(); msrc.disconnect(); sink.disconnect(); res(); } }; });
+      let pk=0; for(let i=0;i<want;i++)pk=Math.max(pk,Math.abs(got[i]));
+      if(pk>0.001){ const g=0.8/pk; for(let i=0;i<want;i++)got[i]*=g; }
+      const xf=Math.min(Math.floor(sr*0.04),want>>2);
+      for(let i=0;i<xf;i++){ const a=i/xf; got[want-xf+i]=got[want-xf+i]*(1-a)+got[i]*a; }
+      loadTape(d, got, 'mic '+new Date().toTimeString().slice(0,5));
+    }catch(err){ $('np').textContent='mic refused — check permissions'; }
+    d.recing=false; updDeck(d); return;
+  }
+  if(armSrc==='file'){
+    if(!fileData){ $('np').textContent='load a file first'; return; }
+    loadTape(d, takeSlice(fileData, sr, loopLen, Math.random), fileName); return;
+  }
+  const src=genSource(armSrc, sr, Math.max(8,loopLen+2));
+  loadTape(d, takeSlice(src, sr, loopLen, Math.random), BUILTINS.find(b=>b[0]===armSrc)[1]);
+}
+function loadTape(d, data, name){ d.data=data; d.rms0=rms(data)||1; d.pass=0; d.name=name; d.nextT=null; d.playing=true; d.dirty=true; updDeck(d); updNp(); }
+
+let fileData=null, fileName='file';
+$('fileBtn').addEventListener('click',()=>$('fileIn').click());
+$('fileIn').addEventListener('change',async e=>{ const f=e.target.files&&e.target.files[0]; e.target.value=''; if(!f)return;
+  try{ ensureCtx(); const ab=await f.arrayBuffer(); const buf=await ctx.decodeAudioData(ab);
+    const mono=new Float32Array(buf.length);
+    for(let c=0;c<buf.numberOfChannels;c++){ const ch=buf.getChannelData(c); for(let i=0;i<buf.length;i++)mono[i]+=ch[i]/buf.numberOfChannels; }
+    fileData=mono; fileName=(f.name.replace(/\.\w+$/,'').slice(0,14))||'file';
+    armSrc='file'; syncSrcSel(); $('np').textContent='"'+fileName+'" armed — hit ● on a cassette';
+  }catch(err){ $('np').textContent='could not read that audio'; } });
+
+// ── output record ─────────────────────────────────────────────────────
+function encodeWav16(chL,chR,sr){ const n=chL.length, ab=new ArrayBuffer(44+n*4), dv=new DataView(ab);
+  const ws=(o,t)=>{for(let i=0;i<t.length;i++)dv.setUint8(o+i,t.charCodeAt(i));};
+  ws(0,'RIFF'); dv.setUint32(4,36+n*4,true); ws(8,'WAVE'); ws(12,'fmt '); dv.setUint32(16,16,true);
+  dv.setUint16(20,1,true); dv.setUint16(22,2,true); dv.setUint32(24,sr,true); dv.setUint32(28,sr*4,true);
+  dv.setUint16(32,4,true); dv.setUint16(34,16,true); ws(36,'data'); dv.setUint32(40,n*4,true);
+  let o=44; for(let i=0;i<n;i++){ let a=clamp(chL[i],-1,1), b=clamp(chR[i],-1,1);
+    dv.setInt16(o,a<0?a*0x8000:a*0x7FFF,true); dv.setInt16(o+2,b<0?b*0x8000:b*0x7FFF,true); o+=4; } return ab; }
+function toggleRecOut(){ const b=$('recOut');
+  if(!recOn){ ensureCtx(); if(ctx.state==='suspended')ctx.resume(); recChunks=[]; recOn=true; b.classList.add('on'); b.textContent='■ stop & save'; }
+  else { recOn=false; b.classList.remove('on');
+    const total=recChunks.reduce((a,c)=>a+c[0].length,0);
+    if(!total){ b.textContent='● rec output'; return; }
+    const L=new Float32Array(total),R=new Float32Array(total); let o=0;
+    recChunks.forEach(c=>{L.set(c[0],o);R.set(c[1],o);o+=c[0].length;}); recChunks=[];
+    const u=URL.createObjectURL(new Blob([encodeWav16(L,R,ctx.sampleRate)],{type:'audio/wav'}));
+    const a=document.createElement('a'); a.href=u; a.download='disintegration-'+Date.now()+'.wav';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(u),5000);
+    b.textContent='saved ✓'; setTimeout(()=>b.textContent='● rec output',1600); } }
+$('recOut').addEventListener('click',toggleRecOut);
+
+// ── ui ────────────────────────────────────────────────────────────────
+function syncSrcSel(){ const sel=$('srcSel'); sel.innerHTML='';
+  const opts=BUILTINS.concat([['mic','microphone'],['file','loaded file: '+fileName]]);
+  for(const [v,l] of opts){ const o=document.createElement('option'); o.value=v; o.textContent='onto tape: '+l; if(v===armSrc)o.selected=true; sel.appendChild(o); } }
+$('srcSel').addEventListener('change',e=>{ armSrc=e.target.value; });
+$('lenSel').addEventListener('change',e=>{ loopLen=+e.target.value; });
+['dust','air','warm','master'].forEach(id=>$(id).addEventListener('input',()=>{ if(!ctx)return;
+  G.dust.gain.setTargetAtTime(Math.pow(+$('dust').value/100,1.6)*0.5,ctx.currentTime,0.15);
+  G.verbLvl.gain.setTargetAtTime(+$('air').value/100*0.8,ctx.currentTime,0.2);
+  G.shape.curve=warmCurve(+$('warm').value);
+  G.master.gain.setTargetAtTime(+$('master').value/100*0.9,ctx.currentTime,0.08); }));
+
+const RATES=[0.5,1,2], RLBL={0.5:'½',1:'1',2:'2'};
+function buildDecks(){
+  const host=$('decks');
+  for(let i=0;i<NDECKS;i++){
+    const d={i, name:'blank', data:null, rms0:1, pass:0, playing:false, rate:1, rev:false, decay:0, vol:80, nextT:null, recing:false, dirty:true};
+    const el=document.createElement('div'); el.className='cass';
+    el.innerHTML=
+      '<div class="label"><span class="nm">'+(['A','B','C','D'][i])+' · blank</span><span class="st">—</span></div>'+
+      '<div class="window"><div class="reel"><div class="hub"></div></div>'+
+      '<canvas class="tapeview"></canvas>'+
+      '<div class="reel"><div class="hub"></div></div></div>'+
+      '<div class="drow">'+
+        '<button class="db" data-a="rec" type="button">●</button>'+
+        '<button class="db" data-a="play" type="button">▶</button>'+
+        '<button class="db" data-a="rate" type="button">1</button>'+
+        '<button class="db" data-a="rev" type="button">rev</button>'+
+        '<button class="db" data-a="erase" type="button">✕</button>'+
+      '</div>'+
+      '<div class="drow" style="margin-top:5px">'+
+        '<span class="dctl"><label>decay</label><input type="range" min="0" max="100" value="0" data-s="decay" aria-label="decay deck '+(i+1)+'"></span>'+
+        '<span class="dctl"><label>vol</label><input type="range" min="0" max="100" value="80" data-s="vol" aria-label="volume deck '+(i+1)+'"></span>'+
+      '</div>';
+    host.appendChild(el);
+    d.el={root:el, nm:el.querySelector('.nm'), st:el.querySelector('.st'), cv:el.querySelector('canvas'),
+      reels:el.querySelectorAll('.hub'), rec:el.querySelector('[data-a=rec]'), play:el.querySelector('[data-a=play]'), rate:el.querySelector('[data-a=rate]'), rev:el.querySelector('[data-a=rev]')};
+    el.addEventListener('click',e=>{ const b=e.target.closest('[data-a]'); if(!b)return;
+      const a=b.dataset.a;
+      if(a==='rec') recordOnto(d);
+      else if(a==='play'){ if(!d.data)return; ensureCtx(); if(ctx.state==='suspended')ctx.resume(); d.playing=!d.playing; d.nextT=null; updDeck(d); updNp(); }
+      else if(a==='rate'){ d.rate=RATES[(RATES.indexOf(d.rate)+1)%3]; updDeck(d); }
+      else if(a==='rev'){ if(d.data){ d.data.reverse(); d.dirty=true; } d.rev=!d.rev; updDeck(d); }
+      else if(a==='erase'){ d.data=null; d.playing=false; d.pass=0; d.name='blank'; d.dirty=true; updDeck(d); updNp(); } });
+    el.addEventListener('input',e=>{ const t=e.target; if(!t.dataset.s)return;
+      if(t.dataset.s==='decay') d.decay=+t.value;
+      else { d.vol=+t.value; if(d.gain) d.gain.gain.setTargetAtTime(Math.pow(d.vol/100,1.4),ctx.currentTime,0.08); } });
+    decks.push(d);
+  }
+}
+function drawTape(d){ const cv=d.el.cv, g=cv.getContext('2d');
+  const W=cv.clientWidth||200, H=44, dpr=Math.min(2,window.devicePixelRatio||1);
+  if(cv.width!==W*dpr){ cv.width=W*dpr; cv.height=H*dpr; }
+  g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+  if(!d.data){ g.fillStyle='rgba(147,133,107,.25)'; g.fillRect(0,H/2-1,W,2); return; }
+  const h=health(d), cols=Math.min(W,220), per=Math.floor(d.data.length/cols);
+  for(let c=0;c<cols;c++){ let m=0; for(let i=0;i<per;i+=13){ const v=Math.abs(d.data[c*per+i]); if(v>m)m=v; }
+    const x=c/cols*W, a=m*(H*0.46)/Math.max(0.15,d.rms0*3);
+    g.strokeStyle=m<0.004?'rgba(60,45,30,.5)':'rgba(232,161,60,'+(0.35+h*0.5)+')';
+    g.beginPath(); g.moveTo(x,H/2-Math.min(H*0.46,a)); g.lineTo(x,H/2+Math.min(H*0.46,a)); g.stroke(); }
+  d.dirty=false; }
+function updDeck(d){ const nm=['A','B','C','D'][d.i]+' · '+d.name;
+  d.el.nm.textContent=nm;
+  d.el.st.textContent=d.data? ('pass '+d.pass+' · '+Math.round(health(d)*100)+'%') : '—';
+  d.el.play.textContent=d.playing?'⏸':'▶'; d.el.play.classList.toggle('on',d.playing);
+  d.el.rate.textContent=RLBL[d.rate]; d.el.rate.classList.toggle('on',d.rate!==1);
+  d.el.rev.classList.toggle('on',d.rev);
+  d.el.rec.classList.toggle('recing',d.recing); }
+function updNp(){ const live=decks.filter(d=>d.playing).length;
+  $('np').textContent=live? (live+' loop'+(live>1?'s':'')+' turning'):'the reels are still'; }
+
+// reels spin, labels tick, tape redraws when eroded
+let rot=[0,0,0,0], lastF=performance.now();
+function anim(){ const now=performance.now(), dt=(now-lastF)/1000; lastF=now;
+  for(const d of decks){ if(d.playing){ rot[d.i]+=dt*120*d.rate*(d.rev?-1:1);
+      d.el.reels.forEach(r=>r.style.transform='rotate('+rot[d.i]+'deg)'); }
+    if(d.dirty) drawTape(d); }
+  requestAnimationFrame(anim); }
+let lblT=setInterval(()=>{ for(const d of decks) if(d.playing) updDeck(d); },900);
+void lblT;
+
+// ── boot ──────────────────────────────────────────────────────────────
+buildDecks(); syncSrcSel(); updNp();
+$('begin').addEventListener('click',()=>{ ensureCtx(); if(ctx.state==='suspended')ctx.resume();
+  $('gate').classList.add('hide'); requestWake();
+  // side A starts loaded with the melody, gently mortal — the demo IS the thesis
+  const d=decks[0]; const sr=ctx.sampleRate;
+  loadTape(d, takeSlice(genSource('melody',sr,10), sr, loopLen, Math.random), 'faded melody');
+  d.decay=18; d.el.root.querySelector('[data-s=decay]').value=18; updDeck(d); });
+schedTick(); requestAnimationFrame(anim);
+
+// zone rack bridge
+let ZMIX=1;
+window.addEventListener('message',ev=>{ const d=ev&&ev.data; if(!d||typeof d!=='object')return;
+  if(d.type==='zone-mix'){ ZMIX=clamp(+d.gain||0,0,1);
+    if(ctx&&G) G.master.gain.setTargetAtTime(+$('master').value/100*0.9*ZMIX,ctx.currentTime,0.08); }
+  else if(d.type==='zone-rec'){ if(!!d.on!==recOn) toggleRecOut(); } });
+
+if(typeof window!=='undefined') window.__TAPE={genSource,degradePass,takeSlice,rms,encodeWav16,warmCurve,BUILTINS,decks};
+})();
+</script>
+</body>
+</html>
